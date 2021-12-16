@@ -40,6 +40,21 @@ class TaskManager {
         task.run();
         this.active.push(task);
       }
+
+      if (this.maxConcurrent) {
+        while (this.queued.length && this.active.length < this.maxConcurrent) {
+          // while there are queued tasks and the active number is less than max
+          const task = this.queued.shift() as Task;
+          task.run();
+          this.active.push(task);
+        }
+      } else {
+        while (this.queued.length) {
+          const task = this.queued.shift() as Task;
+          task.run();
+          this.active.push(task);
+        }
+      }
     }, options.updateInterval || 60000);
   }
 
