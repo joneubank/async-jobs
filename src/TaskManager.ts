@@ -1,81 +1,180 @@
-import { max, sortBy } from 'lodash';
+import { remove, sortBy, uniqueId } from 'lodash';
 import Task from './Task';
-import { TaskState } from './TaskState';
+
+interface RunOptions {
+  notes?: string;
+}
+
+enum EventType {
+  CREATED = 'CREATED',
+  STARTED = 'STARTED',
+  QUEUED = 'QUEUED',
+  SCHEDULED = 'SCHEDULED',
+  COMPLETED = 'COMPLETED',
+  ERROR = 'ERROR',
+}
+type TaskManagerEvent = {
+  type: EventType;
+  date: Date;
+  notes?: string;
+};
+const addEvent = (run: Run, type: EventType, notes?: string) => run.events.push({ type, date: new Date(), notes });
+
+interface Run {
+  task: Task;
+  id: string;
+  events: TaskManagerEvent[];
+}
+const createRun = (task: Task, options?: RunOptions) => {
+  const run = { task, id: uniqueId(), events: [] };
+  addEvent(run, EventType.CREATED);
+  return run;
+};
+
+interface ScheduledRun {
+  run: Run;
+  date: Date;
+}
+
 interface TaskManagerOptions {
   updateInterval?: number;
   maxConcurrent?: number;
 }
-
-interface ScheduledTask {
-  task: Task;
-  date: Date;
-}
-
 class TaskManager {
   // Config
   updateInterval: number;
   maxConcurrent?: number;
 
   // Task Lists
-  active: Task[] = [];
-  queued: Task[] = [];
-  scheduled: ScheduledTask[] = [];
+  private active: Run[] = [];
+  private queued: Run[] = [];
+  private scheduled: ScheduledRun[] = [];
 
-  constructor(options: TaskManagerOptions) {
-    this.updateInterval = options.updateInterval || 60000;
-    this.maxConcurrent = options.maxConcurrent;
+  private completed: Run[] = [];
+  private failed: Run[] = [];
 
-    /**
-     * ##### Check Scheduled tasks, run if possible
-     */
-    setInterval(() => {
-      const now = new Date();
+  // Schedule Checker
+  private _intervalReference?: NodeJS.Timeout;
 
-      // Scheduled array is sorted so earliest is first item
-      // If first item date has not passed, then we can break out of loop.
-      while (this.scheduled.length && this.scheduled[0].date < now) {
-        // start scheduled task and add to active list.
+  constructor(options?: TaskManagerOptions) {
+    this.updateInterval = options?.updateInterval || 60000;
+    this.maxConcurrent = options?.maxConcurrent;
 
-        const task = (this.scheduled.shift() as ScheduledTask).task;
-        task.run();
-        this.active.push(task);
-      }
-
-      if (this.maxConcurrent) {
-        while (this.queued.length && this.active.length < this.maxConcurrent) {
-          // while there are queued tasks and the active number is less than max
-          const task = this.queued.shift() as Task;
-          task.run();
-          this.active.push(task);
-        }
-      } else {
-        while (this.queued.length) {
-          const task = this.queued.shift() as Task;
-          task.run();
-          this.active.push(task);
-        }
-      }
-    }, options.updateInterval || 60000);
+    this._intervalReference = setInterval(this._update, this.updateInterval);
   }
 
-  run(task: Task) {
-    if (this.maxConcurrent && this.active.length >= this.maxConcurrent) {
-      this.queued.unshift(task);
+  /**
+   * Internal Update method
+   * Runs on the defined updateInterval (default to once a minute)
+   *
+   * Actions:
+   * 1. Check for scheduled tasks that need to be started
+   * 2. Begin queued tasks if there are enough concurrent slots
+   */
+  private _update = () => {
+    const now = new Date();
+
+    // ### -- Check for scheduled tasks to start
+    // Scheduled array is sorted so earliest is first item
+    // If first item date has not passed, then we can break out of loop.
+    while (this.scheduled.length && this.scheduled[0].date < now) {
+      // start scheduled task and add to active list.
+      const run = (this.scheduled.shift() as ScheduledRun).run;
+      this._startOrQueueRun(run);
+    }
+    if (this.scheduled.length === 0 && this._intervalReference) {
+      clearInterval(this._intervalReference);
+      this._intervalReference = undefined;
+    }
+
+    // ### -- Begin queued tasks if there are fewer running than the maxConcurrent value
+    this._startTasksIfPossible(this.queued);
+  };
+
+  private _startTasksIfPossible(queue: Run[]) {
+    if (this.maxConcurrent) {
+      while (queue.length && this.active.length < this.maxConcurrent) {
+        // while there are queued tasks and the active number is less than max
+        const run = queue.shift() as Run;
+        this._startRunImmediately(run);
+      }
     } else {
-      task.run();
-      this.active.push(task);
+      while (this.queued.length) {
+        const run = this.queued.shift() as Run;
+        this._startRunImmediately(run);
+      }
     }
   }
-  queue(task: Task) {
-    this.queued.push(task);
-  }
-  schedule(task: Task, date: Date) {
-    this.scheduled.push({ task, date });
-    this.scheduled = sortBy(this.scheduled, 'date');
-  }
-  cron(task: Task, cronSchedule: string) {}
 
-  status() {}
+  /**
+   * Run task now, add to active list
+   * WARNING: No checks performed.
+   * @param task
+   */
+  private async _startRunImmediately(run: Run) {
+    try {
+      this.active.push(run);
+      addEvent(run, EventType.STARTED);
+      await run.task.run();
+    } catch (e) {
+      // TODO: Handle tasks that error out
+      remove(this.active, (activeRun) => activeRun.id === run.id);
+      addEvent(run, EventType.ERROR);
+      this.failed.push(run);
+      console.log(e);
+    } finally {
+      remove(this.active, (activeRun) => activeRun.id === run.id);
+      addEvent(run, EventType.COMPLETED);
+      this.completed.push(run);
+
+      this._update();
+    }
+  }
+
+  /**
+   * This is how a task should be started, it will prevent tasks from being run
+   * @param task
+   */
+  private _startOrQueueRun(run: Run) {
+    if (this.maxConcurrent && this.active.length >= this.maxConcurrent) {
+      this.queued.push(run);
+      addEvent(run, EventType.QUEUED);
+    } else {
+      this._startRunImmediately(run);
+    }
+  }
+
+  run(task: Task, options?: RunOptions): Run {
+    const run = createRun(task, options);
+    this._startOrQueueRun(run);
+
+    return run;
+  }
+  // queue(task: Task, options?: RunOptions) {
+  //   this.queued.push(createRun(task, options));
+  //   this._update();
+  // }
+  schedule(task: Task, date: Date, options?: RunOptions): Run {
+    const run = createRun(task, options);
+    this.scheduled.push({ run, date });
+    addEvent(run, EventType.SCHEDULED, date.toUTCString());
+    this.scheduled = sortBy(this.scheduled, 'date');
+
+    return run;
+  }
+  // cron(task: Task, cronSchedule: string) {}
+
+  status() {
+    return {
+      stats: {
+        running: this.active.length,
+        queued: this.queued.length,
+        scheduled: this.scheduled.length,
+        completed: this.completed.length,
+        failed: this.failed.length,
+      },
+    };
+  }
 }
 
 export default TaskManager;
