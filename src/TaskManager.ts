@@ -42,8 +42,10 @@ interface Run {
 const createRun = (processInput: ProcessInput, options?: RunOptions) => {
   const task: Task = new Task(processInput);
 
-  const run = { task, id: uniqueId(), events: [] };
-  addEvent(run, EventType.CREATED);
+  const { onStarted, onQueued, onScheduleResolved, onFailed, onCompleted } = options || {};
+
+  const run = { task, id: uniqueId(), events: [], onStarted, onQueued, onScheduleResolved, onFailed, onCompleted };
+  addEvent(run, EventType.CREATED, options?.notes);
   return run;
 };
 
