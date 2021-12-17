@@ -10,15 +10,15 @@ const test = async () => {
   console.log('Initialized...');
   console.log(taskManager.status());
 
-  taskManager.run(longProcess(1200));
+  taskManager.run([longProcess(1200), longProcess(300)]);
   console.log('Running...');
   console.log(taskManager.status());
 
-  taskManager.run(longProcess(1300));
+  taskManager.run(predefinedTask);
   console.log('Queued...');
   console.log(taskManager.status());
 
-  const scheduledRun = taskManager.schedule(predefinedTask, new Date(Date.now() + 1500));
+  const scheduledRun = taskManager.schedule([predefinedTask, longProcess(200)], new Date(Date.now() + 1500));
   console.log('Scheduled...');
   console.log(taskManager.status());
   console.log(scheduledRun);
@@ -46,6 +46,7 @@ const test = async () => {
   setTimeout(() => {
     console.log('Waited 6 seconds...');
     console.log(taskManager.status());
+    console.log(scheduledRun);
   }, 6000);
 };
 
