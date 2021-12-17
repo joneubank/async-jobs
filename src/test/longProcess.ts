@@ -3,7 +3,7 @@ const longProcess = (duration: number) => async () => {
   return new Promise((resolve) => {
     setTimeout(() => {
       console.log(`Long process ending after ${duration}`);
-      resolve(undefined);
+      resolve(duration);
     }, duration);
   });
 };

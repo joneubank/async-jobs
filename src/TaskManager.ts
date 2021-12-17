@@ -63,8 +63,6 @@ class TaskManager {
   constructor(options?: TaskManagerOptions) {
     this.updateInterval = options?.updateInterval || 60000;
     this.maxConcurrent = options?.maxConcurrent;
-
-    this._intervalReference = setInterval(this._update, this.updateInterval);
   }
 
   /**
@@ -154,11 +152,16 @@ class TaskManager {
 
     return run;
   }
-  schedule(task: Task, date: Date, options?: RunOptions): Run {
+  schedule(task: ProcessInput, date: Date, options?: RunOptions): Run {
     const run = createRun(task, options);
     this.scheduled.push({ run, date });
     addEvent(run, EventType.SCHEDULED, date.toUTCString());
     this.scheduled = sortBy(this.scheduled, 'date');
+
+    // Start update interval, will continue until scheduled queue is finished
+    if (!this._intervalReference) {
+      this._intervalReference = setInterval(this._update, this.updateInterval);
+    }
 
     return run;
   }
