@@ -4,6 +4,12 @@ import { ProcessInput } from './Task';
 
 interface RunOptions {
   notes?: string;
+
+  onStarted?: Function;
+  onQueued?: Function;
+  onScheduleResolved?: Function;
+  onFailed?: Function;
+  onCompleted?: Function;
 }
 
 enum EventType {
@@ -25,6 +31,12 @@ interface Run {
   task: Task;
   id: string;
   events: TaskManagerEvent[];
+
+  onStarted?: Function;
+  onQueued?: Function;
+  onScheduleResolved?: Function;
+  onFailed?: Function;
+  onCompleted?: Function;
 }
 
 const createRun = (processInput: ProcessInput, options?: RunOptions) => {
@@ -84,6 +96,8 @@ class TaskManager {
     while (this.scheduled.length && this.scheduled[0].date < now) {
       // start scheduled task and add to active list.
       const run = (this.scheduled.shift() as ScheduledRun).run;
+      run.onScheduleResolved && run.onScheduleResolved();
+
       this._startOrQueueRun(run);
     }
     if (this.scheduled.length === 0 && this._intervalReference) {
@@ -103,7 +117,7 @@ class TaskManager {
         this._startRunImmediately(run);
       }
     } else {
-      while (this.queued.length) {
+      while (queue.length) {
         const run = this.queued.shift() as Run;
         this._startRunImmediately(run);
       }
@@ -120,18 +134,23 @@ class TaskManager {
       this.active.push(run);
       addEvent(run, EventType.STARTED);
       await run.task.run();
+      run.onStarted && run.onStarted();
     } catch (e) {
-      // TODO: Handle tasks that error out
+      console.log(e);
+
       remove(this.active, (activeRun) => activeRun.id === run.id);
       addEvent(run, EventType.ERROR);
       this.failed.push(run);
-      console.log(e);
+
+      run.onFailed && run.onFailed();
     } finally {
       remove(this.active, (activeRun) => activeRun.id === run.id);
       addEvent(run, EventType.COMPLETED);
       this.completed.push(run);
 
       this._update();
+
+      run.onCompleted && run.onCompleted();
     }
   }
 
@@ -143,6 +162,7 @@ class TaskManager {
     if (this.maxConcurrent && this.active.length >= this.maxConcurrent) {
       this.queued.push(run);
       addEvent(run, EventType.QUEUED);
+      run.onQueued && run.onQueued();
     } else {
       this._startRunImmediately(run);
     }
