@@ -4,21 +4,21 @@ import Task from '../Task';
 
 const test = async () => {
   const taskManager = new TaskManager({ maxConcurrent: 1, updateInterval: 500 });
-  const task1 = new Task(longProcess(1200));
-  const task2 = new Task(longProcess(1500));
+
+  const predefinedTask = new Task(longProcess(1500), { name: 'long process 1500' });
 
   console.log('Initialized...');
   console.log(taskManager.status());
 
-  taskManager.run(task1);
+  taskManager.run(longProcess(1200));
   console.log('Running...');
   console.log(taskManager.status());
 
-  taskManager.run(task2);
+  taskManager.run(longProcess(1300));
   console.log('Queued...');
   console.log(taskManager.status());
 
-  const scheduledRun = taskManager.schedule(task1, new Date(Date.now() + 1500));
+  const scheduledRun = taskManager.schedule(predefinedTask, new Date(Date.now() + 1500));
   console.log('Scheduled...');
   console.log(taskManager.status());
   console.log(scheduledRun);

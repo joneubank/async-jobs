@@ -1,5 +1,6 @@
-import { remove, sortBy, uniqueId } from 'lodash';
+import { isArray, remove, sortBy, uniqueId } from 'lodash';
 import Task from './Task';
+import { ProcessInput } from './Task';
 
 interface RunOptions {
   notes?: string;
@@ -25,7 +26,10 @@ interface Run {
   id: string;
   events: TaskManagerEvent[];
 }
-const createRun = (task: Task, options?: RunOptions) => {
+
+const createRun = (processInput: ProcessInput, options?: RunOptions) => {
+  const task: Task = new Task(processInput);
+
   const run = { task, id: uniqueId(), events: [] };
   addEvent(run, EventType.CREATED);
   return run;
@@ -144,16 +148,12 @@ class TaskManager {
     }
   }
 
-  run(task: Task, options?: RunOptions): Run {
+  run(task: ProcessInput, options?: RunOptions): Run {
     const run = createRun(task, options);
     this._startOrQueueRun(run);
 
     return run;
   }
-  // queue(task: Task, options?: RunOptions) {
-  //   this.queued.push(createRun(task, options));
-  //   this._update();
-  // }
   schedule(task: Task, date: Date, options?: RunOptions): Run {
     const run = createRun(task, options);
     this.scheduled.push({ run, date });

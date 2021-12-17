@@ -1,11 +1,12 @@
 import { flatMap, isArray, uniqueId } from 'lodash';
 import { TaskState } from './TaskState';
 
-type Process = (task: TaskReflection) => Promise<any>;
+export type Process = (task: TaskReflection) => Promise<any>;
+export type ProcessInput = (Process | Task) | (Process | Task)[];
 
 interface TaskOptions {
-  name: string;
-  description: string;
+  name?: string;
+  description?: string;
 }
 
 interface TaskReflection {}
@@ -24,14 +25,25 @@ class Task implements TaskReflection {
   output: any[] = [];
   error?: string;
 
-  constructor(process: (Process | Task) | (Process | Task)[], options?: TaskOptions) {
+  constructor(process: ProcessInput, options?: TaskOptions) {
     this.id = uniqueId();
     if (isArray(process)) {
       this.processes = flatMap(process, (input: Process | Task) =>
         typeof input === 'object' ? input.processes : input,
       );
+      this.name = options?.name || '';
+      this.description = options?.description || '';
     } else {
-      this.processes = typeof process === 'object' ? process.processes : [process];
+      if (typeof process === 'object') {
+        // process is a task
+        this.processes = process.processes;
+        this.name = options?.name || process.name;
+        this.description = options?.description || process.description;
+      } else {
+        this.processes = [process];
+        this.name = options?.name || '';
+        this.description = options?.description || '';
+      }
     }
   }
 
