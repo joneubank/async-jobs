@@ -1,5 +1,11 @@
 import { flatMap, isArray, uniqueId } from 'lodash';
-import { TaskState } from './TaskState';
+
+export enum TaskState {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  ERROR = 'ERROR',
+  COMPLETED = 'COMPLETED',
+}
 
 export type Process = (task: TaskReflection) => Promise<any>;
 export type ProcessInput = (Process | Task) | (Process | Task)[];
