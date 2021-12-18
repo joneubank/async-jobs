@@ -1,4 +1,6 @@
-import { isArray, remove, sortBy, uniqueId } from 'lodash';
+import { get, isArray, isString, remove, sortBy, uniqueId } from 'lodash';
+import { CronJob } from 'cron';
+
 import Task from './Task';
 import { ProcessInput } from './Task';
 
@@ -40,7 +42,7 @@ interface Run {
 }
 
 const createRun = (processInput: ProcessInput, options?: RunOptions) => {
-  const task: Task = new Task(processInput);
+  const task = new Task(processInput);
 
   const { onStarted, onQueued, onScheduleResolved, onFailed, onCompleted } = options || {};
 
@@ -52,6 +54,14 @@ const createRun = (processInput: ProcessInput, options?: RunOptions) => {
 interface ScheduledRun {
   run: Run;
   date: Date;
+}
+
+interface CronRecord {
+  job: CronJob;
+  id: string;
+  task: Task;
+  schedule: string;
+  options: RunOptions;
 }
 
 interface TaskManagerOptions {
@@ -70,6 +80,8 @@ class TaskManager {
 
   private completed: Run[] = [];
   private failed: Run[] = [];
+
+  private cronJobs: CronRecord[] = [];
 
   // Schedule Checker
   private _intervalReference?: NodeJS.Timeout;
@@ -187,17 +199,62 @@ class TaskManager {
 
     return run;
   }
-  // cron(task: Task, cronSchedule: string) {}
+
+  /*
+   * ### -- Cron Job Handling
+   */
+
+  cron(cronSchedule: string, task: ProcessInput, options: RunOptions): CronRecord {
+    const job = this.createCronRecord(cronSchedule, task, options);
+    this.cronJobs.push(job);
+    return job;
+  }
+
+  createCronRecord = (schedule: string, processInput: ProcessInput, options: RunOptions): CronRecord => {
+    const task = new Task(processInput);
+    const record = {
+      id: uniqueId(),
+      schedule,
+      task,
+      options,
+    };
+    const job = new CronJob(
+      schedule,
+      () => {
+        this._startOrQueueRun(
+          createRun(task, {
+            ...record.options,
+            notes: [`Created by CronJob Schedule: ${schedule}`, get(options, 'notes')].filter(isString).join(' - '),
+          }),
+        );
+      },
+      null,
+      true,
+    );
+    return { ...record, job };
+  };
+
+  deactivateCronJobs() {
+    this.cronJobs.forEach((record) => record.job.stop());
+  }
+  activateCronJobs() {
+    this.cronJobs.forEach((record) => record.job.start());
+  }
+
+  stats() {
+    return {
+      running: this.active.length,
+      queued: this.queued.length,
+      scheduled: this.scheduled.length,
+      completed: this.completed.length,
+      failed: this.failed.length,
+      cron: this.cronJobs.length,
+    };
+  }
 
   status() {
     return {
-      stats: {
-        running: this.active.length,
-        queued: this.queued.length,
-        scheduled: this.scheduled.length,
-        completed: this.completed.length,
-        failed: this.failed.length,
-      },
+      stats: this.stats(),
     };
   }
 }

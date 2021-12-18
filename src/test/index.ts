@@ -18,10 +18,22 @@ const test = async () => {
   console.log('Queued...');
   console.log(taskManager.status());
 
-  const scheduledRun = taskManager.schedule([predefinedTask, longProcess(200)], new Date(Date.now() + 1500));
+  const scheduledRun = taskManager.schedule([predefinedTask, longProcess(1100)], new Date(Date.now() + 1500));
   console.log('Scheduled...');
   console.log(taskManager.status());
-  console.log(scheduledRun);
+  scheduledRun.onScheduleResolved = () => console.log('scheduled run start time has passed');
+  scheduledRun.onQueued = () => console.log('scheduled run queued');
+  scheduledRun.onStarted = () => console.log('scheduled run started');
+  scheduledRun.onCompleted = () => console.log('scheduled run completed');
+
+  const cronJob = taskManager.cron('* * * * *', longProcess(250), { notes: 'test' });
+  console.log('Scheduled...');
+  console.log(taskManager.status());
+  cronJob.options.onCompleted = () => {
+    console.log('completed job');
+    cronJob.job.stop();
+  };
+  console.log(cronJob, cronJob.job.nextDate());
 
   setTimeout(() => {
     console.log('Waited 1 seconds...');
@@ -46,7 +58,6 @@ const test = async () => {
   setTimeout(() => {
     console.log('Waited 6 seconds...');
     console.log(taskManager.status());
-    console.log(scheduledRun);
   }, 6000);
 };
 
