@@ -9,7 +9,13 @@ interface TaskOptions {
   description?: string;
 }
 
-interface TaskReflection {}
+interface TaskReflection {
+  updateProgress: (progress: number, max?: number) => void;
+  getProgress: () => { progress: number; max: number };
+
+  logs: string[];
+  log: (log: string) => void;
+}
 
 class Task implements TaskReflection {
   active: boolean = false;
@@ -24,6 +30,24 @@ class Task implements TaskReflection {
   processes: Process[];
   output: any[] = [];
   error?: string;
+
+  // ### -- TaskReflection
+  private progress: number = 0;
+  private progressMax: number = 100;
+  updateProgress(progress: number, max?: number) {
+    this.progress = progress;
+    if (max) {
+      this.progressMax = max;
+    }
+  }
+  getProgress() {
+    return { progress: this.progress, max: this.progressMax };
+  }
+
+  logs: string[] = [];
+  log(log: string) {
+    this.logs.push(log);
+  }
 
   constructor(process: ProcessInput, options?: TaskOptions) {
     this.id = uniqueId();
@@ -79,6 +103,10 @@ class Task implements TaskReflection {
       state: this.state,
       start: this.start,
       end: this.end,
+
+      progress: this.progress,
+      progressMax: this.progressMax,
+      logs: this.logs,
 
       output: this.output,
     };
