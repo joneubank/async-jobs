@@ -186,7 +186,7 @@ class TaskManager {
 
     return run;
   }
-  schedule(task: ProcessInput, date: Date, options?: RunOptions): Run {
+  schedule(date: Date, task: ProcessInput, options?: RunOptions): Run {
     const run = createRun(task, options);
     this.scheduled.push({ run, date });
     addEvent(run, EventType.SCHEDULED, date.toUTCString());
@@ -241,20 +241,46 @@ class TaskManager {
     this.cronJobs.forEach((record) => record.job.start());
   }
 
+  // ### -- Reporting
+
   stats() {
     return {
       running: this.active.length,
       queued: this.queued.length,
-      scheduled: this.scheduled.length,
       completed: this.completed.length,
       failed: this.failed.length,
+      scheduled: this.scheduled.length,
       cron: this.cronJobs.length,
     };
   }
 
-  status() {
+  listActive(): Run[] {
+    return [...this.active];
+  }
+  listQueued(): Run[] {
+    return [...this.queued];
+  }
+  listCompleted(): Run[] {
+    return [...this.completed];
+  }
+  listScheduled(): ScheduledRun[] {
+    return [...this.scheduled];
+  }
+  listFailed(): Run[] {
+    return [...this.failed];
+  }
+  listCron(): CronRecord[] {
+    return [...this.cronJobs];
+  }
+
+  listAll() {
     return {
-      stats: this.stats(),
+      active: this.listActive(),
+      queued: this.listQueued(),
+      completed: this.listCompleted(),
+      failed: this.listFailed(),
+      scheduled: this.listScheduled(),
+      cron: this.listCron(),
     };
   }
 }
