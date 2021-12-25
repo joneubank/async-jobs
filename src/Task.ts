@@ -19,6 +19,9 @@ interface TaskReflection {
   updateProgress: (progress: number, max?: number) => void;
   getProgress: () => { progress: number; max: number };
 
+  setStatus: (status: string | object) => void;
+  getStatus: () => string | object;
+
   logs: string[];
   log: (log: string) => void;
 }
@@ -48,6 +51,14 @@ class Task implements TaskReflection {
   }
   getProgress() {
     return { progress: this.progress, max: this.progressMax };
+  }
+
+  private status: string | object = '';
+  setStatus(status: string | object) {
+    this.status = status;
+  }
+  getStatus() {
+    return this.status;
   }
 
   logs: string[] = [];
