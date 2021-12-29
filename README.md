@@ -52,9 +52,9 @@ taskManager.stats();
 taskManager.listAll();
 /*
 {
-  running: Run[],
-  queued:
-  scheduled: [<Object(ScheduledRun)>]
+  running: [<Object(Run)>],
+  queued: []
+  scheduled: [<Object(ScheduledRun)>],
   cron: [<Object(CronRecord)>]
 }
 */
